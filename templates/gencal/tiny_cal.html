@@ -1,0 +1,27 @@
+<table class="cal_month_calendar">
+	<caption>
+            <a href="{% url gencal prev_date.year,prev_date.month %}">&laquo;</a>
+            <a class="blacklink" href="{% url gencal date.year,date.month %}">{{ date|date:"F Y" }}
+            <a href="{% url gencal next_date.year,next_date.month %}">&raquo;</a>
+        </caption>
+	<tr>
+		{% for day in headers %}
+		<th>{{ day }}</th>
+		{% endfor %}
+	</tr>
+	{% for week in month_cal %}
+	<tr>
+		{% for day in week %}
+		<td {% if not day.in_month %}class="cal_not_in_month"{% endif %}>
+			<div class="table_cell_contents">
+				<div class="month_num">
+					{% if day.event %}<strong>{% endif %}
+					{{ day.day|date:"j" }}
+					{% if day.event %}</strong>{% endif %}
+				</div>
+			</div>
+		</td>
+		{% endfor %}
+	</tr>
+	{% endfor %}
+</table>
