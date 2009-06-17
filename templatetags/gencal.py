@@ -1,7 +1,5 @@
-#from datetime import datetime, timedelta, date
 import datetime
 import calendar
-import string
 from django.db.models import get_model
 from django.template import Node, Library, TemplateSyntaxError, Variable, Context
 from django.template.loader import get_template
