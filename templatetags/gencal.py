@@ -15,89 +15,29 @@ class SimpleGencalNode(Node):
     """
     def __init__(self, model, field, date_obj, template):
         self.field, self.date_obj, self.template = field, Variable(date_obj), template
-        self.model = get_model(*model.split('.'))
+        # See:
+        #   http://www.b-list.org/weblog/2007/nov/03/working-models/
+        # for explanation of this jiggery-pokery.
+        model_list = model.split('.')
+        assert(len(model_list) == 2)
+        app_label, model_name = model_list
+        self.model = get_model(app_label, model_name)
+        assert (self.model != None)
 
     def render(self, context):
-
-        # Need to build the proper structure to pass in:
         self.date_obj = self.date_obj.resolve(context)
         self.field = str(self.field)
-#        import pdb; pdb.set_trace()
+        year, month = getattr(self.date_obj, 'year'), getattr(self.date_obj, 'month')
+        year_key, month_key = ("%s__year" % self.field), ("%s__month" % self.field)
+        event_set = self.model._default_manager.filter( **{ year_key:year } ).filter( **{ month_key:month })
 
-        event_set = self.model._default_manager.filter( **{ "%s__year" % (self.field):getattr(self.date_obj, 'year')} ).filter( **{ "%s__month" % (self.field):getattr(self.date_obj, 'month')})
+        cal_items = [{ 'day':getattr(event, self.field), 'title':event.__unicode__(), 'url':event.get_absolute_url(), 'class':'' } for event in event_set]
 
-
-        cal_items = []
-
-        for event in event_set:
-            cal_items.append({ 'day':getattr(event, self.field), 'title':event.__unicode__(), 'url':event.get_absolute_url(), 'class':'' })
-
-
-        year = self.date_obj.year
-        month = self.date_obj.month
-
-        # account for previous month in case of Jan
-        if month-1 == 0:
-            lastmonth = 12
-            prev_date = datetime.datetime(year-1, 12, 1)
-        else:
-            lastmonth = month-1
-            prev_date = datetime.datetime(year, month-1, 1)
-
-        # account for next month in case of Dec
-        if month+1 == 13:
-            next_date = datetime.datetime(year+1, 1, 1)
-        else:
-            next_date = datetime.datetime(year, month+1, 1)
-
-        month_range = calendar.monthrange(year, month)
-        first_day_of_month = datetime.date(year, month, 1)
-        last_day_of_month = datetime.date(year, month, month_range[1])
-        num_days_last_month = calendar.monthrange(year, lastmonth)[1]
-
-        # first day of calendar is:
-        #
-        # first day of the month with days counted back (timedelta)
-        # until Sunday which is day-of-week_num plus one (for the
-        # 0 offset)
-        #
-
-        first_day_of_calendar = first_day_of_month - datetime.timedelta(first_day_of_month.weekday())
-
-        # last day of calendar is:
-        #
-        # the last day of the month with days added on (timedelta)
-        # until saturday[5] (the last day of our calendar)
-        #
-
-        last_day_of_calendar = last_day_of_month + datetime.timedelta(12 - last_day_of_month.weekday())
-
-        month_cal = []
-        week = []
-        week_headers = []
-        for header in calendar.weekheader(2).split(' '):
-            week_headers.append(header)
-        day = first_day_of_calendar
-        while day <= last_day_of_calendar:
-            cal_day = {}                # Reset the day's values
-            cal_day['day'] = day        # Set the value of day to the current day num
-            cal_day['event'] = []       # Clear any events for the day
-            for event in cal_items:     # iterate through every event passed in
-                if event['day'].strftime("%m %d") == day.strftime("%m %d"): # Search for events whose day matches the current day. Be insensitive to extra datetime params. Only look for month + date
-                    cal_day['event'].append({'title':event['title'], 'url':event['url'], 'class':event['class']}) # If it is happening today, add it to the list
-            if day.month == month:      # Figure out if the day is the current month, or the leading / following calendar days
-                cal_day['in_month'] = True
-            else:
-                cal_day['in_month'] = False
-            week.append(cal_day)        # Add the current day to the week
-            if day.weekday() == 6:      # When Sunday comes, add the week to the calendar
-                month_cal.append(week)
-                week = []               # Reset the week
-            day += datetime.timedelta(1)        # set day to next day (in datetime object)
+        d = gencal(self.date_obj, cal_items)
         
         template = get_template(self.template)
 
-        return template.render(Context({'month_cal': month_cal, 'headers': week_headers, 'date':self.date_obj, 'prev_date':prev_date, 'next_date':next_date }))
+        return template.render(Context(d))
 
 @register.tag(name='simple_gencal')
 def simple_gencal(parser, token):
@@ -107,7 +47,7 @@ def simple_gencal(parser, token):
         {% simple_gencal for Base.Model on date_field in DateObject with 'my/template.html' %}
     
     Base.Model is the model you'd like to pull from
-    date_field is the date or datetime field in the afforementioned model
+    date_field is the date or datetime field in the aforementioned model
     DateObject is the date / datetime obj of the month to render (Defaults to current)
     'my/template.html' is the template to render (Defaults to gencal/gencal.html)
 
@@ -116,7 +56,7 @@ def simple_gencal(parser, token):
     if len(bits) > 9:
         raise TemplateSyntaxError, "simple_gencal takes a maximum of 8 arguments"
     try:
-        if (bits[5] == 'in'):   
+        if (bits[5] == 'in'):
             pass
     except IndexError:
         # This means it wasn't passed in, so assign the defaults.
