@@ -97,10 +97,7 @@ class SimpleGencalNode(Node):
         
         template = get_template(self.template)
 
- #       import pdb;pdb.set_trace()
-
         return template.render(Context({'month_cal': month_cal, 'headers': week_headers, 'date':self.date_obj, 'prev_date':prev_date, 'next_date':next_date }))
-
 
 @register.tag(name='simple_gencal')
 def simple_gencal(parser, token):
@@ -179,20 +176,19 @@ def gencal(date = datetime.datetime.now(), cal_items=[]):
     # Set the values pulled in from urls.py to integers from strings
     year = date.year
     month = date.month
-
+    
     # account for previous month in case of Jan
-    if month-1 == 0:
+    lastmonth, nextmonth = month - 1, month + 1
+    lastyear, nextyear = year, year
+    if lastmonth == 0:
         lastmonth = 12
-        prev_date = datetime.datetime(year-1, 12, 1)
-    else:
-        lastmonth = month-1
-        prev_date = datetime.datetime(year, month-1, 1)
+        lastyear -= 1
+    elif nextmonth == 13:
+        nextmonth = 1
+        nextyear += 1
 
-    # account for next month in case of Dec
-    if month+1 == 13:
-        next_date = datetime.datetime(year+1, 1, 1)
-    else:
-        next_date = datetime.datetime(year, month+1, 1)
+    prev_date = datetime.datetime(lastyear, lastmonth, 1)
+    next_date = datetime.datetime(nextyear, nextmonth, 1)
 
     month_range = calendar.monthrange(year, month)
     first_day_of_month = datetime.date(year, month, 1)
@@ -218,26 +214,18 @@ def gencal(date = datetime.datetime.now(), cal_items=[]):
 
     month_cal = []
     week = []
-    week_headers = []
-    for header in calendar.weekheader(2).split(' '):
-        week_headers.append(header)
+    week_headers = [header for header in calendar.weekheader(2).split(' ')]
     day = first_day_of_calendar
     while day <= last_day_of_calendar:
-        cal_day = {}                # Reset the day's values
-        cal_day['day'] = day        # Set the value of day to the current day num
-        cal_day['event'] = []       # Clear any events for the day
+        cal_day = {'day': day, 'event': []}                # Reset the day's values
         for event in cal_items:     # iterate through every event passed in
             if event['day'].strftime("%m %d") == day.strftime("%m %d"): # Search for events whose day matches the current day. Be insensitive to extra datetime params. Only look for month + date
                 cal_day['event'].append({'title':event['title'], 'url':event['url'], 'class':event['class'], 'timestamp':event['day'] }) # If it is happening today, add it to the list
-        if day.month == month:      # Figure out if the day is the current month, or the leading / following calendar days
-            cal_day['in_month'] = True
-        else:
-            cal_day['in_month'] = False
+        cal_day['in_month'] = (day.month == month)      # Figure out if the day is the current month, or the leading / following calendar days
         week.append(cal_day)        # Add the current day to the week
         if day.weekday() == 6:      # When Sunday comes, add the week to the calendar
             month_cal.append(week)
             week = []               # Reset the week
         day += datetime.timedelta(1)        # set day to next day (in datetime object)
-
 
     return {'month_cal': month_cal, 'headers': week_headers, 'date':date, 'prev_date':prev_date, 'next_date':next_date }
