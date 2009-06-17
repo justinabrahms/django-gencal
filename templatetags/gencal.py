@@ -9,9 +9,17 @@ register = Library()
 
 class SimpleGencalNode(Node):
     """
-
     {% simple_gencal for Base.Model on date_field in DateObject with 'template' %}
 
+    e.g.:
+    
+    {% simple_gencal for event.Event on day in date with gencal/gencal.html %}
+    
+    where:
+    event is an application and Event is a model in that app and
+    day is a field in Event and
+    date is a Context variable containing the date to render on and
+    gencal/gencal.html is a template to use to render a calendar.
     """
     def __init__(self, model, field, date_obj, template):
         self.field, self.date_obj, self.template = field, Variable(date_obj), template
@@ -34,9 +42,7 @@ class SimpleGencalNode(Node):
         cal_items = [{ 'day':getattr(event, self.field), 'title':event.__unicode__(), 'url':event.get_absolute_url(), 'class':'' } for event in event_set]
 
         d = gencal(self.date_obj, cal_items)
-        
         template = get_template(self.template)
-
         return template.render(Context(d))
 
 @register.tag(name='simple_gencal')
