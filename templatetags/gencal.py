@@ -1,9 +1,11 @@
+#from datetime import datetime, timedelta, date
 import datetime
 import calendar
 import string
 from django.db.models import get_model
 from django.template import Node, Library, TemplateSyntaxError, Variable, Context
 from django.template.loader import get_template
+from collections import defaultdict
 
 register = Library()
 
@@ -74,7 +76,7 @@ def simple_gencal(parser, token):
     return SimpleGencalNode(bits[2], bits[4], bits[6], bits[8])
 
 @register.inclusion_tag('gencal/gencal.html') # TODO: Make this generic
-def gencal(date = datetime.datetime.now(), cal_items=[]):
+def gencal(date = datetime.datetime.today(), cal_items=[]):
     """
     This will generate a calendar. It expects the year & month (in datetime format)
     and a list of dicts in the following format:
@@ -120,8 +122,7 @@ def gencal(date = datetime.datetime.now(), cal_items=[]):
 
     """
     # Set the values pulled in from urls.py to integers from strings
-    year = date.year
-    month = date.month
+    year, month = date.year, date.month
     
     # account for previous month in case of Jan
     lastmonth, nextmonth = month - 1, month + 1
@@ -133,8 +134,8 @@ def gencal(date = datetime.datetime.now(), cal_items=[]):
         nextmonth = 1
         nextyear += 1
 
-    prev_date = datetime.datetime(lastyear, lastmonth, 1)
-    next_date = datetime.datetime(nextyear, nextmonth, 1)
+    prev_date = datetime.date(lastyear, lastmonth, 1)
+    next_date = datetime.date(nextyear, nextmonth, 1)
 
     month_range = calendar.monthrange(year, month)
     first_day_of_month = datetime.date(year, month, 1)
@@ -158,16 +159,18 @@ def gencal(date = datetime.datetime.now(), cal_items=[]):
 
     last_day_of_calendar = last_day_of_month + datetime.timedelta(12 - last_day_of_month.weekday())
 
+    events_by_day = defaultdict(list)
+    for event in cal_items:
+        d = event['day']
+        d = datetime.date(d.year, d.month, d.day)
+        events_by_day[d].append({'title':event['title'], 'url':event['url'], 'class':event['class'], 'timestamp':event['day'] })
+
     month_cal = []
     week = []
     week_headers = [header for header in calendar.weekheader(2).split(' ')]
     day = first_day_of_calendar
     while day <= last_day_of_calendar:
-        cal_day = {'day': day, 'event': []}                # Reset the day's values
-        for event in cal_items:     # iterate through every event passed in
-            if event['day'].strftime("%m %d") == day.strftime("%m %d"): # Search for events whose day matches the current day. Be insensitive to extra datetime params. Only look for month + date
-                cal_day['event'].append({'title':event['title'], 'url':event['url'], 'class':event['class'], 'timestamp':event['day'] }) # If it is happening today, add it to the list
-        cal_day['in_month'] = (day.month == month)      # Figure out if the day is the current month, or the leading / following calendar days
+        cal_day = {'day': day, 'event': events_by_day[day], 'in_month': (day.month == month)}
         week.append(cal_day)        # Add the current day to the week
         if day.weekday() == 6:      # When Sunday comes, add the week to the calendar
             month_cal.append(week)
