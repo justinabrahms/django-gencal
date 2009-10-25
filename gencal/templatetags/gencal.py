@@ -4,6 +4,7 @@ from django.db.models import get_model
 from django.template import Node, Library, TemplateSyntaxError, Variable, Context
 from django.template.loader import get_template
 from collections import defaultdict
+from calendar import HTMLCalendar
 
 register = Library()
 
@@ -176,3 +177,43 @@ def gencal(date = datetime.datetime.today(), cal_items=[]):
         day += datetime.timedelta(1)        # set day to next day (in datetime object)
 
     return {'month_cal': month_cal, 'headers': week_headers, 'date':date, 'prev_date':prev_date, 'next_date':next_date }
+
+
+
+
+class QuerySetCalendar(HTMLCalendar):
+    """
+    This is a calendar object which accepts a ``qs`` keyword
+    argument and a ``date_field`` keyword argument.. This class will
+    return an HTML calendar with links on the days that are present in
+    the queryset, using ``date_field`` as the lookup..
+    """
+    
+    def __init__(self, *args, **kwargs):
+        self.date_field = kwargs.pop('date_field')
+        self.queryset = kwargs.pop('qs')
+        super(QuerySetCalendar, self).__init__(*args, **kwargs)
+
+    def formatday(self, day, weekday, month):
+        """
+        Return a day as a table cell.
+        """
+        if self.queryset.filter(**{'%s' % self.date_field: day}).exists():
+            # return link
+            return '<td><a href="%s">%d</a></td>' % (get_link(day),  day.day)
+        else:
+            # no link
+            return '<td>%d</td>' % (day.day)
+
+    def get_link(self, dt):
+        """
+        A subclassable function which accepts a date/datetime and
+        should return a url to give for that date on a calendar.
+        """
+        raise NotImplementedError("Subclass this to tell gencal how to make your links")
+        
+
+
+@register.simple_tag
+def qs_calendar(qs, date_field, month, year):
+    return QuerySetCalendar(date_field=date_field, qs=qs).formatmonth(int(year), int(month))
