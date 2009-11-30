@@ -2,6 +2,16 @@ import datetime
 import calendar
 from django.utils.datastructures import SortedDict
 from calendar import HTMLCalendar, Calendar
+from django.template import register
+
+@register.simple_tag
+def gencal(obj_list, year=None, month=None):
+    today = datetime.date.today()
+    if not year:
+        year = today.year
+    if not month:
+        month = today.month
+    return ''.join(ListCalendar(obj_list).formatmonth(year, month))
 
 class ListCalendar(HTMLCalendar):
     """
@@ -64,7 +74,7 @@ class ListCalendar(HTMLCalendar):
         A subclassable function which accepts a date/datetime and
         should return a url to give for that date on a calendar.
         """
-        raise NotImplementedError("Subclass this to tell gencal how to make your links")
+        return None
 
     def monthdates2calendar(self, year, month):
         """
