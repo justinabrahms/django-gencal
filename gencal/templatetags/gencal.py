@@ -1,209 +1,63 @@
 import datetime
 import calendar
-from django.db.models import get_model
-from django.template import Node, Library, TemplateSyntaxError, Variable, Context
-from django.template.loader import get_template
-from collections import defaultdict
-from calendar import HTMLCalendar
+from django.utils.datastructures import SortedDict
+from calendar import HTMLCalendar, Calendar
 
-register = Library()
-
-class SimpleGencalNode(Node):
+class ListCalendar(HTMLCalendar):
     """
-    {% simple_gencal for Base.Model on date_field in DateObject with 'template' %}
-
-    e.g.:
-    
-    {% simple_gencal for event.Event on day in date with gencal/gencal.html %}
-    
-    where:
-    event is an application and Event is a model in that app and
-    day is a field in Event and
-    date is a Context variable containing the date to render on and
-    gencal/gencal.html is a template to use to render a calendar.
+    This is a calendar object which accepts a ``list`` argument and a
+    ``date_field`` keyword argument.. This class will return an HTML
+    calendar with links on the days that are present in the list,
+    using ``date_field`` as the lookup.
     """
-    def __init__(self, model, field, date_obj, template):
-        self.field, self.date_obj, self.template = field, Variable(date_obj), template
-        # See:
-        #   http://www.b-list.org/weblog/2007/nov/03/working-models/
-        # for explanation of this jiggery-pokery.
-        model_list = model.split('.')
-        assert(len(model_list) == 2)
-        app_label, model_name = model_list
-        self.model = get_model(app_label, model_name)
-        assert (self.model != None)
 
-    def render(self, context):
-        self.date_obj = self.date_obj.resolve(context)
-        self.field = str(self.field)
-        year, month = getattr(self.date_obj, 'year'), getattr(self.date_obj, 'month')
-        year_key, month_key = ("%s__year" % self.field), ("%s__month" % self.field)
-        event_set = self.model._default_manager.filter( **{ year_key:year } ).filter( **{ month_key:month })
+    def __init__(self, cal_items, year=None, month=None, *args, **kwargs):
+        today = datetime.date.today()
 
-        cal_items = [{ 'day':getattr(event, self.field), 'title':event.__unicode__(), 'url':event.get_absolute_url(), 'class':'' } for event in event_set]
+        if year == None:
+            year = today.year
+        self.year = year
 
-        d = gencal(self.date_obj, cal_items)
-        template = get_template(self.template)
-        return template.render(Context(d))
+        if not month:
+            month = today.month
+        self.month = month
 
-@register.tag(name='simple_gencal')
-def simple_gencal(parser, token):
-    """
-    The proper way to call simple_gencal is::
-    
-        {% simple_gencal for Base.Model on date_field in DateObject with 'my/template.html' %}
-    
-    Base.Model is the model you'd like to pull from
-    date_field is the date or datetime field in the aforementioned model
-    DateObject is the date / datetime obj of the month to render (Defaults to current)
-    'my/template.html' is the template to render (Defaults to gencal/gencal.html)
+        self.date_field = kwargs.pop('date_field', 'date')
 
-    """
-    bits = token.contents.split()
-    if len(bits) > 9:
-        raise TemplateSyntaxError, "simple_gencal takes a maximum of 8 arguments"
-    try:
-        if (bits[5] == 'in'):
-            pass
-    except IndexError:
-        # This means it wasn't passed in, so assign the defaults.
-        # Need to investigate *args and **args b/c what if 
-        # they want to define a template but not the month to render?
-        pass
-        
-    # FIXME: Need to add checks in for simple_gencal to make sure people are using the correct arguments and such
-    return SimpleGencalNode(bits[2], bits[4], bits[6], bits[8])
+        super(ListCalendar, self).__init__(*args, **kwargs)
 
-@register.inclusion_tag('gencal/gencal.html') # TODO: Make this generic
-def gencal(date = datetime.datetime.today(), cal_items=[]):
-    """
-    This will generate a calendar. It expects the year & month (in datetime format)
-    and a list of dicts in the following format:
+        cal_arr = self.monthdatescalendar(year, month)
+        month_dict = SortedDict()
+        for week in cal_arr:
+            for date in week:
+                month_dict[date] = []
 
-    cal_items = [{ 'day':datetime(2008,1,30), 'title':"Concert at Huckelberries", 'class':"concert",    'url':'/foo/2' },
-                 { 'day':datetime(2008,2,4),  'title':"BBQ at Mom\'s house",      'class':"restaurant", 'url':'/restaurants/9' }]
+        for item in cal_items:
+            if isinstance(item, dict):
+                possible_date = item.get(self.date_field)
+            else:
+                possible_date = getattr(item, self.date_field)
+            if possible_date:
+                month_dict[possible_date].append(item)
+        self.month_dict = month_dict
 
-    A listing of variables and their meanings:
+    def parse(self):
+        """
+        Iterates self.cal_items adding one item for each day.
+        """
 
-    * day is the datetime of the day you'd like to reference
-    * title is the text of the event that will be rendered
-    * url is the url to the object you'd like to reference, it isn't necessary. If you don't wish to pass in a url, just pass it as None
-    * class is a non-necessary field that will apply class="your_entry" to the list item
-
-    My suggested urls.py file is:
-    *Note: Its important to name your year/month url gencal or the backwards/forwards links won't work*;
-
-    ::
-
-        urlpatterns = patterns('',
-            url(r'^(?P<year>\d{4})/(?P<month>\d+)/$', 'online_department.schedule.views.index', name='gencal'),
-            (r'^$', 'online_department.schedule.views.index'),
-        )
-
-    The CSS I use to make it look good is:
-
-    ::
-
-        <style type="text/css">
-        table.cal_month_calendar caption { text-align: center; text-size: 15px; background: none;}
-        table.cal_month_calendar table { width: 455px;}
-        table.cal_month_calendar th,td { width: 65px;}
-        table.cal_month_calendar th { text-align: center; }
-        table.cal_month_calendar td { height: 65px; position: relative;}
-        table.cal_month_calendar td.cal_not_in_month { background-color: #ccc;}
-        table.cal_month_calendar div.table_cell_contents { position: relative; height: 65px; width: 65px;}
-        table.cal_month_calendar div.month_num { position: absolute; top: 1px; left: 1px; }
-        table.cal_month_calendar ul.event_list { list-style-type: none; padding: 15px 0 0 0; margin: 0;}
-        table.cal_month_calendar { border-collapse: collapse; }
-        table.cal_month_calendar th { color: white; background: black;}
-        table.cal_month_calendar td, th { border: 1px solid black; }
-        </style>
-
-    """
-    # Set the values pulled in from urls.py to integers from strings
-    year, month = date.year, date.month
-    
-    # account for previous month in case of Jan
-    lastmonth, nextmonth = month - 1, month + 1
-    lastyear, nextyear = year, year
-    if lastmonth == 0:
-        lastmonth = 12
-        lastyear -= 1
-    elif nextmonth == 13:
-        nextmonth = 1
-        nextyear += 1
-
-    prev_date = datetime.date(lastyear, lastmonth, 1)
-    next_date = datetime.date(nextyear, nextmonth, 1)
-
-    month_range = calendar.monthrange(year, month)
-    first_day_of_month = datetime.date(year, month, 1)
-    last_day_of_month = datetime.date(year, month, month_range[1])
-    num_days_last_month = calendar.monthrange(year, lastmonth)[1]
-
-    # first day of calendar is:
-    #
-    # first day of the month with days counted back (timedelta)
-    # until Sunday which is day-of-week_num plus one (for the
-    # 0 offset)
-    #
-
-    first_day_of_calendar = first_day_of_month - datetime.timedelta(first_day_of_month.weekday())
-
-    # last day of calendar is:
-    #
-    # the last day of the month with days added on (timedelta)
-    # until saturday[5] (the last day of our calendar)
-    #
-
-    last_day_of_calendar = last_day_of_month + datetime.timedelta(12 - last_day_of_month.weekday())
-
-    events_by_day = defaultdict(list)
-    for event in cal_items:
-        d = event['day']
-        d = datetime.date(d.year, d.month, d.day)
-        events_by_day[d].append({'title':event['title'], 'url':event['url'], 'class':event['class'], 'timestamp':event['day'] })
-
-    month_cal = []
-    week = []
-    week_headers = [header for header in calendar.weekheader(2).split(' ')]
-    day = first_day_of_calendar
-    while day <= last_day_of_calendar:
-        cal_day = {'day': day, 'event': events_by_day[day], 'in_month': (day.month == month)}
-        week.append(cal_day)        # Add the current day to the week
-        if day.weekday() == 6:      # When Sunday comes, add the week to the calendar
-            month_cal.append(week)
-            week = []               # Reset the week
-        day += datetime.timedelta(1)        # set day to next day (in datetime object)
-
-    return {'month_cal': month_cal, 'headers': week_headers, 'date':date, 'prev_date':prev_date, 'next_date':next_date }
-
-
-
-
-class QuerySetCalendar(HTMLCalendar):
-    """
-    This is a calendar object which accepts a ``qs`` keyword
-    argument and a ``date_field`` keyword argument.. This class will
-    return an HTML calendar with links on the days that are present in
-    the queryset, using ``date_field`` as the lookup..
-    """
-    
-    def __init__(self, *args, **kwargs):
-        self.date_field = kwargs.pop('date_field')
-        self.queryset = kwargs.pop('qs')
-        super(QuerySetCalendar, self).__init__(*args, **kwargs)
-
-    def formatday(self, day, weekday, month):
+    def formatday(self, day, weekday):
         """
         Return a day as a table cell.
+
+        day is a full date object, rather than just a number like in
+        core.
         """
-        if self.queryset.filter(**{'%s' % self.date_field: day}).exists():
+        link = self.get_link(day)
+        if link:
             # return link
-            return '<td><a href="%s">%d</a></td>' % (get_link(day),  day.day)
-        else:
-            # no link
-            return '<td>%d</td>' % (day.day)
+            return '<td><a href="%s">%d</a></td>' % (self.get_link(day),  day.day)
+        return '<td>%d</td>' % (day.day)
 
     def get_link(self, dt):
         """
@@ -211,9 +65,39 @@ class QuerySetCalendar(HTMLCalendar):
         should return a url to give for that date on a calendar.
         """
         raise NotImplementedError("Subclass this to tell gencal how to make your links")
-        
 
+    def monthdates2calendar(self, year, month):
+        """
+        Function returns a list containing a list of tuples
+        (representing a week), the tuples represent a
+        ``datetime.date`` for the given day and the weekday associated
+        with it.
 
-@register.simple_tag
-def qs_calendar(qs, date_field, month, year):
-    return QuerySetCalendar(date_field=date_field, qs=qs).formatmonth(int(year), int(month))
+        This is something that ought to be implemented in core. We
+        have monthdatescalendar, monthdayscalendar,
+        monthdays2calendar, but no monthdates2calendar.
+        """
+        return [[(dt, dt.weekday()) for dt in week] for week in self.monthdatescalendar(year, month)]
+
+    def formatmonth(self, theyear, themonth, withyear=True):
+        """
+        Return a formatted month as a table.
+
+        Overridden so weeks will use monthdates2calendar, so we have
+        access to full date objects, rather than numbers.
+        """
+        v = []
+        a = v.append
+ 
+        a('<table border="0" cellpadding="0" cellspacing="0" class="month">')
+        a('\n')
+        a(self.formatmonthname(theyear, themonth, withyear=withyear))
+        a('\n')
+        a(self.formatweekheader())
+        a('\n')
+        for week in self.monthdates2calendar(theyear, themonth):
+            a(self.formatweek(week))
+            a('\n')
+        a('</table>')
+        a('\n')
+        return v
