@@ -3,12 +3,14 @@ any django app.
 
 An imporant distinction here is I mean calendar (rendering calendars)
 not recurring events and such. For that, check out Tony Hauber's
-django-schedule.
+[django-schedule](http://github.com/thauber/django-schedule).
 
 Example Usage:
 
-{% load gencal %}
+  {% load gencal %}
+  
+  {% gencal my_list 2009 11 %}
 
-{% gencal my_list 2009 11 %}
 or
-{% gencal my_list %} # will default to today
+
+  {% gencal my_list %} # will default to today
