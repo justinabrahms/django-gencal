@@ -2,7 +2,9 @@ import datetime
 import calendar
 from django.utils.datastructures import SortedDict
 from calendar import HTMLCalendar, Calendar
-from django.template import register
+from django import template
+
+register = template.Library()
 
 @register.simple_tag
 def gencal(obj_list, year=None, month=None):
