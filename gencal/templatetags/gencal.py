@@ -8,6 +8,27 @@ register = template.Library()
 
 @register.simple_tag
 def gencal(obj_list, year=None, month=None):
+    """
+    Renders a simple calendar of the given month and year if none are
+    specified. Accomplishes this by passing the arguments to
+    :class:`ListCalendar`
+
+    ::
+
+      {% gencal queryset %}
+
+      {% gencal queryset 1983 12 %}
+      
+
+    :param obj_list: A list of objects to render on the calendar.
+    :type obj_list: list.
+    :keyword year: Year to render.
+    :type year: int.
+    :keyword month: Month to render.
+    :type month: int.
+    :returns: calendar as HTML
+    :rtype: str.
+    """
     today = datetime.date.today()
     if not year:
         year = today.year
@@ -21,6 +42,13 @@ class ListCalendar(HTMLCalendar):
     ``date_field`` keyword argument.. This class will return an HTML
     calendar with links on the days that are present in the list,
     using ``date_field`` as the lookup.
+
+    :param cal_items: A list of items to put in the calendar.
+    :type cal_items: list.
+    :keyword year: Year to render.
+    :type year: int.
+    :keyword month: Month to render.
+    :type month: int.
     """
 
     def __init__(self, cal_items, year=None, month=None, *args, **kwargs):
@@ -53,17 +81,14 @@ class ListCalendar(HTMLCalendar):
                 month_dict[possible_date].append(item)
         self.month_dict = month_dict
 
-    def parse(self):
-        """
-        Iterates self.cal_items adding one item for each day.
-        """
-
     def formatday(self, day, weekday):
         """
         Return a day as a table cell.
 
-        day is a full date object, rather than just a number like in
-        core.
+        :arg day: A day to be formatted.
+        :type day: date object.
+        :arg weekday: Weekday of given day.
+        :type weekday: int.
         """
         link = self.get_link(day)
         if link:
@@ -73,8 +98,10 @@ class ListCalendar(HTMLCalendar):
 
     def get_link(self, dt):
         """
-        A subclassable function which accepts a date/datetime and
-        should return a url to give for that date on a calendar.
+        Should return a url to a given date, as represented by ``dt``
+        
+        :arg dt: date to turn into a url
+        :type dt: date/datetime
         """
         return None
 
@@ -88,6 +115,13 @@ class ListCalendar(HTMLCalendar):
         This is something that ought to be implemented in core. We
         have monthdatescalendar, monthdayscalendar,
         monthdays2calendar, but no monthdates2calendar.
+
+        :keyword year: Year to render.
+        :type year: int.
+        :keyword month: Month to render.
+        :type month: int.
+        :returns: Tuple of (datetime, weekday).
+        :rtype: tuple(datetime, int)
         """
         return [[(dt, dt.weekday()) for dt in week] for week in self.monthdatescalendar(year, month)]
 
@@ -97,6 +131,13 @@ class ListCalendar(HTMLCalendar):
 
         Overridden so weeks will use monthdates2calendar, so we have
         access to full date objects, rather than numbers.
+
+        :arg theyear: Year of calendar to render.
+        :type theyear: int.
+        :arg themonth: Month of calendar to render
+        :type themonth: int.
+        :keyword withyear: If true, it will show the year in the header.
+        :type withyear: bool.
         """
         v = []
         a = v.append
