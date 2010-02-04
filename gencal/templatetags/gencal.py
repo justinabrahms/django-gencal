@@ -77,6 +77,9 @@ class ListCalendar(HTMLCalendar):
                 possible_date = item.get(self.date_field)
             else:
                 possible_date = getattr(item, self.date_field)
+            if type(possible_date) == datetime.datetime:
+                # transform possible_date to a date, not a datetime
+                possible_date = possible_date.date()
             if possible_date:
                 month_dict[possible_date].append(item)
         self.month_dict = month_dict
