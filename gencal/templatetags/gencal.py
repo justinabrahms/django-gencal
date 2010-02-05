@@ -45,6 +45,29 @@ class ListCalendar(HTMLCalendar):
     calendar with links on the days that are present in the list,
     using ``date_field`` as the lookup.
 
+    It's assumed that the provided list is valid for the given month,
+    ie: contains no outside dates.
+
+    Usage::
+
+        >>> from datetime import datetime, timedelta
+        >>> from gencal.templatetags.gencal import ListCalendar
+        >>> subclass = type('SubListClass', (ListCalendar,),{}) # This is equivalent to a subclass
+        >>> subclass.get_link(self, dt) = lambda dt: "/items/%d/%d/%d" % (dt.year, dt.month, dt.day)
+        >>> dates = [{'date':datetime.now(), 'name':'test'},
+        ... {'date':datetime.now() + timedelta(days=5), 'name':'test2'}]
+        >>> lc = subclass(dates)
+        >>> print "".join(lc.formatmonth(2009, 01))
+        <table border="0" cellpadding="0" cellspacing="0" class="month">
+        <tr><th colspan="7" class="month">January 2009</th></tr>
+        <tr><th class="mon">Mon</th><th class="tue">Tue</th><th class="wed">Wed</th><th class="thu">Thu</th><th class="fri">Fri</th><th class="sat">Sat</th><th class="sun">Sun</th></tr>
+        <tr><td><a href="/items/2008/12/29">29</a></td><td><a href="/items/2008/12/30">30</a></td><td><a href="/items/2008/12/31">31</a></td><td><a href="/items/2009/1/1">1</a></td><td><a href="/items/2009/1/2">2</a></td><td><a href="/items/2009/1/3">3</a></td><td><a href="/items/2009/1/4">4</a></td></tr>
+        <tr><td><a href="/items/2009/1/5">5</a></td><td><a href="/items/2009/1/6">6</a></td><td><a href="/items/2009/1/7">7</a></td><td><a href="/items/2009/1/8">8</a></td><td><a href="/items/2009/1/9">9</a></td><td><a href="/items/2009/1/10">10</a></td><td><a href="/items/2009/1/11">11</a></td></tr>
+        <tr><td><a href="/items/2009/1/12">12</a></td><td><a href="/items/2009/1/13">13</a></td><td><a href="/items/2009/1/14">14</a></td><td><a href="/items/2009/1/15">15</a></td><td><a href="/items/2009/1/16">16</a></td><td><a href="/items/2009/1/17">17</a></td><td><a href="/items/2009/1/18">18</a></td></tr>
+        <tr><td><a href="/items/2009/1/19">19</a></td><td><a href="/items/2009/1/20">20</a></td><td><a href="/items/2009/1/21">21</a></td><td><a href="/items/2009/1/22">22</a></td><td><a href="/items/2009/1/23">23</a></td><td><a href="/items/2009/1/24">24</a></td><td><a href="/items/2009/1/25">25</a></td></tr>
+        <tr><td><a href="/items/2009/1/26">26</a></td><td><a href="/items/2009/1/27">27</a></td><td><a href="/items/2009/1/28">28</a></td><td><a href="/items/2009/1/29">29</a></td><td><a href="/items/2009/1/30">30</a></td><td><a href="/items/2009/1/31">31</a></td><td><a href="/items/2009/2/1">1</a></td></tr>
+        </table>
+
     :param cal_items: A list of items to put in the calendar.
     :type cal_items: list.
     :keyword year: Year to render.
