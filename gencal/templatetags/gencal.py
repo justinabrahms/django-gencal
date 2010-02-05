@@ -7,7 +7,7 @@ from django import template
 register = template.Library()
 
 @register.simple_tag
-def gencal(obj_list, year=None, month=None):
+def gencal(obj_list, year=None, month=None, calendar_class=None):
     """
     Renders a simple calendar of the given month and year if none are
     specified. Accomplishes this by passing the arguments to
@@ -34,7 +34,9 @@ def gencal(obj_list, year=None, month=None):
         year = today.year
     if not month:
         month = today.month
-    return ''.join(ListCalendar(obj_list).formatmonth(year, month))
+    if not calendar_class:
+        calendar_class = ListCalendar
+    return ''.join(calendar_class(obj_list).formatmonth(year, month))
 
 class ListCalendar(HTMLCalendar):
     """
