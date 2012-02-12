@@ -6,7 +6,7 @@ f.close()
 
 setup(
     name='django-gencal',
-    version='0.1',
+    version='0.2',
     description='django-gencal is a resuable Django application for rendering calendars.',
     long_description=readme,
     author='Justin Lilly',
