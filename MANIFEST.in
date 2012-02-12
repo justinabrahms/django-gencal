@@ -2,4 +2,4 @@ include AUTHORS
 include COPYRIGHT
 include README.md
 recursive-include docs *
-recursive-include gencal/templatetags/ *
+recursive-include gencal/templatetags *
